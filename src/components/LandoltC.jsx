@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 
-// --- Report Component (ADD THIS AT THE TOP) ---
+// --- Report Component ---
 const IconRefresh = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -125,7 +125,6 @@ const IconX = ({ className }) => (
   </svg>
 );
 
-// --- New Fullscreen Icons ---
 const IconMaximize = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 0h-4m4 0l-5-5" />
@@ -141,30 +140,23 @@ const IconMinimize = ({ className }) => (
 
 const LandoltC = ({ onClose }) => {
   const voiceSocketRef = useRef(null);
-  const recognitionRef = useRef(null); // UPDATED: Web Speech API Ref
-
-
-
-
+  const recognitionRef = useRef(null);
   const canvasRef = useRef(null);
-  const componentRef = useRef(null); // Ref for the main div to make fullscreen
+  const componentRef = useRef(null); 
   const [pixelsPerMm, setPixelsPerMm] = useState(null);
   const [viewingDistance, setViewingDistance] = useState(400); // 400cm = 4m
   
-  // CHANGED: Updated acuity levels (removed 6/36, 6/60)
   const ACUITY_LEVELS = [
-  "6/3",   // 0
-  "6/4",   // 1
-  "6/5",   // 2
-  "6/6",   // 3  <-- starting point
-  "6/8",   // 4
-  "6/9",   // 5
-  "6/12",  // 6
-  "6/18",  // 7
-  "6/24"   // 8
-];
-
-
+    "6/3",   // 0
+    "6/4",   // 1
+    "6/5",   // 2
+    "6/6",   // 3  <-- starting point
+    "6/8",   // 4
+    "6/9",   // 5
+    "6/12",  // 6
+    "6/18",  // 7
+    "6/24"   // 8
+  ];
   
   const acuityToNumber = (acuity) => parseFloat(acuity.split('/')[1]);
   const startingIndex = ACUITY_LEVELS.indexOf('6/6');
@@ -173,7 +165,7 @@ const LandoltC = ({ onClose }) => {
   const [testHistory, setTestHistory] = useState([]);
   const [testComplete, setTestComplete] = useState(false);
   const [finalAcuity, setFinalAcuity] = useState(null);
-  const [showReport, setShowReport] = useState(false); // ADDED: For showing report
+  const [showReport, setShowReport] = useState(false);
   
   const [voiceSocket, setVoiceSocket] = useState(null);
   const [voiceStatus, setVoiceStatus] = useState('Initializing...');
@@ -185,7 +177,7 @@ const LandoltC = ({ onClose }) => {
   const [testStarted, setTestStarted] = useState(false);
   const [testStage, setTestStage] = useState('initial-prep');
   const [microphoneActive, setMicrophoneActive] = useState(false);
-  const [isPaused, setIsPaused] = useState(false); // New Pause State
+  const [isPaused, setIsPaused] = useState(false); 
   
   const [currentPartial, setCurrentPartial] = useState('');
   
@@ -197,17 +189,16 @@ const LandoltC = ({ onClose }) => {
   const timerRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   
-  // REMOVED: searchBounds state (no longer needed)
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // --- CRITICAL FIX: Ref to hold latest state for WebSocket/Voice callbacks ---
-  // This prevents the "Stale State" bug where the test refuses to move forward
+  // --- CRITICAL FIX START: Added currentAcuityIndex to Ref ---
   const testStateRef = useRef({
     currentSymbolIndex: 0,
     userResponses: [],
     chartPattern: [],
     testStage: 'initial-prep',
-    isPaused: false
+    isPaused: false,
+    currentAcuityIndex: startingIndex // Initialize with starting index
   });
 
   // Keep ref synced with state on every render
@@ -217,10 +208,11 @@ const LandoltC = ({ onClose }) => {
       userResponses,
       chartPattern,
       testStage,
-      isPaused
+      isPaused,
+      currentAcuityIndex // Update ref when state changes
     };
-  }, [currentSymbolIndex, userResponses, chartPattern, testStage, isPaused]);
-
+  }, [currentSymbolIndex, userResponses, chartPattern, testStage, isPaused, currentAcuityIndex]);
+  // --- CRITICAL FIX END ---
 
   // --- Fullscreen Controls ---
   const requestFullscreen = () => {
@@ -297,7 +289,7 @@ const LandoltC = ({ onClose }) => {
     }
   }, [testStarted, pixelsPerMm, voiceSocket]);
 
-  // 3. Start Web Speech API (Instead of AudioWorklet)
+  // 3. Start Web Speech API
   useEffect(() => {
     if (microphoneActive && !recognitionRef.current) {
       startWebSpeech();
@@ -340,19 +332,17 @@ const LandoltC = ({ onClose }) => {
             break;
           case 'ready_for_test':
             setVoiceStatus("Ready! Say 'Start' or wait.");
-            setMicrophoneActive(true); // Triggers Web Speech
+            setMicrophoneActive(true);
             break;
           case 'PAUSE_REQUESTED':
             handlePause();
             break;
           case 'CORRECT': {
             const state = testStateRef.current;
-  // Ignore stray messages when not actively testing a symbol
             if (state.testStage !== 'testing' || state.isPaused) {
               console.log("[VOICE] Ignoring CORRECT in stage:", state.testStage);
               break;
             }
-
             setCurrentPartial(`Heard: ${data.text}`);
             processResponse(true, state);
             break;
@@ -360,12 +350,10 @@ const LandoltC = ({ onClose }) => {
 
         case 'INCORRECT': {
           const state = testStateRef.current;
-  // Ignore stray messages when not actively testing a symbol
           if (state.testStage !== 'testing' || state.isPaused) {
             console.log("[VOICE] Ignoring INCORRECT in stage:", state.testStage);
             break;
           }
-
           setCurrentPartial(`Heard: ${data.text}`);
           processResponse(false, state);
           break;
@@ -391,7 +379,6 @@ const LandoltC = ({ onClose }) => {
       setMicrophoneActive(false);
       setVoiceSocket(null);
       
-      // Clean up recognition
       if (recognitionRef.current) {
         recognitionRef.current.abort();
         recognitionRef.current = null;
@@ -439,7 +426,6 @@ const LandoltC = ({ onClose }) => {
     };
     
     recognition.onend = () => {
-        // Auto-restart if we think the mic should still be active
         if (microphoneActive && !testComplete) {
             try { recognition.start(); } catch(e){}
         }
@@ -457,30 +443,33 @@ const LandoltC = ({ onClose }) => {
   // --- Logic Helpers ---
   const processResponse = (isCorrect, currentState) => {
     clearTimers();
+
+    const stage = testStateRef.current.testStage;
+    if (stage === "evaluating" || stage === "transition") {
+      console.log("Ignoring voice during:", stage);
+      return;
+    }
+
     const { currentSymbolIndex, userResponses } = currentState;
-    
     const newResponses = [...userResponses];
     newResponses[currentSymbolIndex] = isCorrect;
-    
+
     setUserResponses(newResponses);
     setVoiceStatus(isCorrect ? "Correct!" : "Incorrect.");
-    
+
     setTimeout(() => {
-        if (!isCorrect) {
-            // Logic: Fail row on incorrect, or continue? (Assuming fail row based on previous logic)
-            evaluateLevel(newResponses, true);
-        } else {
-            if (currentSymbolIndex < dynamicCountForLevel() - 1) {
-                moveToNextSymbol(currentSymbolIndex + 1);
-            } else {
-                evaluateLevel(newResponses, false);
-            }
-        }
-    }, 1000);
+      const rowSize = dynamicCountForLevel();
+
+      if (currentSymbolIndex < rowSize - 1) {
+        moveToNextSymbol(currentSymbolIndex + 1);
+      } else {
+        const forceFail = newResponses.includes(false);
+        evaluateLevel(newResponses, forceFail);
+      }
+    }, 700);
   };
 
   // --- Test Flow Logic ---
-
   const startInitialCountdownTimer = () => {
     setTestStage('initial-prep');
     setTimeLeft(15);
@@ -501,28 +490,39 @@ const LandoltC = ({ onClose }) => {
   };
 
   const startSymbolTest = () => {
-    setTestStage('testing');
-    const newPattern = generateRowPattern();
+    clearTimers();
+    setTestStage("testing");
 
-    setChartPattern(newPattern);
-    setUserResponses(Array(dynamicCountForLevel()).fill(undefined));
+    const size = dynamicCountForLevel();
+    setUserResponses(Array(size).fill(null));
     setCurrentSymbolIndex(0);
 
-    const start = () => {
-      if (!voiceSocketRef.current || voiceSocketRef.current.readyState !== WebSocket.OPEN) {
-        setTimeout(start, 200);
-        return;
+    try {
+      if (recognitionRef.current) {
+        recognitionRef.current.onend = () => {
+          try { recognitionRef.current.start(); } catch(e){}
+        };
+        try { recognitionRef.current.start(); } catch(e){}
       }
-      
-      voiceSocketRef.current.send(JSON.stringify({
-        command: "START_SYMBOL",
-        orientation: newPattern[0]
-      }));
-      startSymbolTimer(0);
-    };
-    start();
+    } catch (e) { console.log("Speech error:", e); }
+
+    loadNextSymbol();
   };
-  
+
+  const loadNextSymbol = () => {
+    const newPattern = generateRowPattern();
+    setChartPattern(newPattern);
+    
+    setTimeout(() => {
+        if (voiceSocketRef.current && voiceSocketRef.current.readyState === WebSocket.OPEN) {
+            voiceSocketRef.current.send(JSON.stringify({
+                command: "NEXT_SYMBOL",
+                orientation: newPattern[0]
+            }));
+        }
+        startSymbolTimer(0);
+    }, 100);
+  };
 
   const startSymbolTimer = (indexOverride) => {
     clearTimers();
@@ -542,14 +542,6 @@ const LandoltC = ({ onClose }) => {
         return prev - 1;
       });
     }, 1000);
-  };
-
-  const handleCorrectResponse = () => {
-    // This is now handled by processResponse using refs
-  };
-
-  const handleIncorrectResponse = () => {
-     // This is now handled by processResponse using refs
   };
 
   const handleTimeout = () => {
@@ -587,143 +579,110 @@ const LandoltC = ({ onClose }) => {
   };
 
   const evaluateLevel = (responses, forceFail) => {
-  clearTimers();
-  setTestStage("evaluating");
+    clearTimers();
+    setTestStage("evaluating");
 
-  const rowSize = dynamicCountForLevel();
-  const correctCount = responses.filter(r => r === true).length;
+    try {
+      if (recognitionRef.current) recognitionRef.current.stop();
+    } catch (e) {}
 
-  // did user pass this row?
-  const couldSee = (!forceFail && correctCount === rowSize);
+    const rowSize = dynamicCountForLevel();
+    const correctCount = responses.filter(r => r === true).length;
+    const couldSee = (!forceFail && correctCount === rowSize);
 
-  setTestHistory(prev => [
-    ...prev,
-    { acuity: ACUITY_LEVELS[currentAcuityIndex], couldSee }
-  ]);
+    setTestHistory(prev => [
+      ...prev,
+      { acuity: ACUITY_LEVELS[currentAcuityIndex], couldSee }
+    ]);
 
-  setTimeout(() => {
-    decideNextStep(couldSee);
-  }, 300);
-};
+    setTimeout(() => {
+      decideNextStep(couldSee);
+    }, 300);
+  };
 
+  // --- CRITICAL FIX START: Read currentAcuityIndex from Ref ---
+  const decideNextStep = (couldSee) => {
+    // Read from Ref to ensure we have the latest value in the closure
+    const curr = testStateRef.current.currentAcuityIndex;
 
-const decideNextStep = (couldSee) => {
-  const curr = currentAcuityIndex;
+    console.log("DECIDE:", curr, ACUITY_LEVELS[curr], "couldSee:", couldSee);
 
-  console.log("DECIDE:", curr, ACUITY_LEVELS[curr], "couldSee:", couldSee);
+    if (curr === 3) { // 6/6
+      if (couldSee) setFinalLogic(1); // Go to 6/4
+      else setFinalLogic(5);          // Go to 6/9
+      return;
+    }
 
-  // -----------------------------------------
-  // LEVEL: 6/6 (index 3)
-  // -----------------------------------------
-  if (curr === 3) {
-    if (couldSee) setFinalLogic(1);  // → 6/4
-    else setFinalLogic(5);           // → 6/9
-    return;
-  }
+    if (curr === 1) { // 6/4
+      if (couldSee) setFinalLogic(0); // Go to 6/3
+      else setFinalLogic(2);          // Go to 6/5 (Corrected flow)
+      return;
+    }
 
-  // -----------------------------------------
-  // LEVEL: 6/4 (index 1)
-  // -----------------------------------------
-  if (curr === 1) {
-    if (couldSee) setFinalLogic(0);  // → 6/3
-    else setFinalLogic(2);           // → 6/5
-    return;
-  }
+    if (curr === 0) { // 6/3
+      setFinalAcuity(couldSee ? "6/3" : "6/4");
+      finishTest();
+      return;
+    }
 
-  // -----------------------------------------
-  // LEVEL: 6/3 (index 0) FINAL
-  // -----------------------------------------
-  if (curr === 0) {
-    setFinalAcuity(couldSee ? "6/3" : "6/4");
-    finishTest();
-    return;
-  }
+    if (curr === 2) { // 6/5
+      setFinalAcuity(couldSee ? "6/5" : "6/6");
+      finishTest();
+      return;
+    }
 
-  // -----------------------------------------
-  // LEVEL: 6/5 (index 2) FINAL
-  // -----------------------------------------
-  if (curr === 2) {
-    setFinalAcuity(couldSee ? "6/5" : "6/6");
-    finishTest();
-    return;
-  }
+    if (curr === 5) { // 6/9
+      if (couldSee) setFinalLogic(4);
+      else setFinalLogic(7);
+      return;
+    }
 
-  // -----------------------------------------
-  // LEVEL: 6/9 (index 5)
-  // -----------------------------------------
-  if (curr === 5) {
-    if (couldSee) setFinalLogic(4);   // → 6/8
-    else setFinalLogic(7);            // → 6/18
-    return;
-  }
+    if (curr === 4) { // 6/8
+      setFinalAcuity(couldSee ? "6/8" : "6/9");
+      finishTest();
+      return;
+    }
 
-  // -----------------------------------------
-  // LEVEL: 6/8 (index 4) FINAL
-  // -----------------------------------------
-  if (curr === 4) {
-    setFinalAcuity(couldSee ? "6/8" : "6/9");
-    finishTest();
-    return;
-  }
+    if (curr === 7) { // 6/18
+      if (couldSee) setFinalLogic(6);
+      else setFinalLogic(8);
+      return;
+    }
 
-  // -----------------------------------------
-  // LEVEL: 6/18 (index 7)
-  // -----------------------------------------
-  if (curr === 7) {
-    if (couldSee) setFinalLogic(6);   // → 6/12
-    else setFinalLogic(8);            // → 6/24
-    return;
-  }
+    if (curr === 6) { // 6/12
+      setFinalAcuity(couldSee ? "6/12" : "6/18");
+      finishTest();
+      return;
+    }
 
-  // -----------------------------------------
-  // LEVEL: 6/12 (index 6) FINAL
-  // -----------------------------------------
-  if (curr === 6) {
-    setFinalAcuity(couldSee ? "6/12" : "6/18");
-    finishTest();
-    return;
-  }
+    if (curr === 8) { // 6/24
+      setFinalAcuity("6/24");
+      finishTest();
+      return;
+    }
+  };
+  // --- CRITICAL FIX END ---
 
-  // -----------------------------------------
-  // LEVEL: 6/24 (index 8) FINAL
-  // -----------------------------------------
-  if (curr === 8) {
-    setFinalAcuity("6/24");
-    finishTest();
-    return;
-  }
-};
+  const setFinalLogic = (nextIndex) => {
+    setTestStage("transition");
+    setCurrentAcuityIndex(nextIndex); // Updates State (for UI)
+    // Ref update is handled by the useEffect logic automatically
+    setTimeout(() => {
+      startSymbolTest();
+    }, 200);
+  };
 
+  const finishTest = () => {
+    setTestComplete(true);
+    setTestStage("completed");
+    setShowReport(true);
 
-
-const setFinalLogic = (nextIndex) => {
-  setCurrentAcuityIndex(nextIndex);
-  setTimeout(() => {
-    startSymbolTest();
-  }, 200);
-};
-
-
-const finishTest = () => {
-  setTestComplete(true);
-  setTestStage("completed");
-  setShowReport(true);
-
-  if (voiceSocketRef.current) {
-    voiceSocketRef.current.send(
-      JSON.stringify({ command: "STOP_LISTENING" })
-    );
-  }
-};
-
-
-
-
-
-
- 
-
- 
+    if (voiceSocketRef.current) {
+      voiceSocketRef.current.send(
+        JSON.stringify({ command: "STOP_LISTENING" })
+      );
+    }
+  };
 
   const clearTimers = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -750,10 +709,9 @@ const finishTest = () => {
       voiceSocketRef.current = null;
     }
     
-    // --- RESTART FIX: Remove ONEND listener before aborting ---
     if (recognitionRef.current) {
-        recognitionRef.current.onend = null; // Prevent auto-restart logic from firing
-        recognitionRef.current.abort(); // Hard stop
+        recognitionRef.current.onend = null; 
+        recognitionRef.current.abort(); 
         recognitionRef.current = null;
     }
     
@@ -765,10 +723,8 @@ const finishTest = () => {
   };
   
   const handleRestart = () => {
-    // 1. Cleanup old state
     cleanup();
     
-    // 2. Reset React State
     setCurrentAcuityIndex(startingIndex);
     setTestHistory([]);
     setTestComplete(false);
@@ -780,34 +736,31 @@ const finishTest = () => {
     setTestStage('initial-prep');
     setVoiceStatus('Restarting...');
     setIsPaused(false);
-    setShowReport(false); // ADDED: Hide report
+    setShowReport(false); 
     
-    // 3. Reset Ref immediately
+    // --- CRITICAL FIX: Reset Ref fully including acuity index ---
     testStateRef.current = {
         currentSymbolIndex: 0,
         userResponses: [],
         chartPattern: [],
         testStage: 'initial-prep',
-        isPaused: false
+        isPaused: false,
+        currentAcuityIndex: startingIndex 
     };
 
-    // 4. Trigger new start after brief delay
     setTimeout(() => {
         setTestStarted(true);
-        // Note: The WebSocket connection sequence (initializeVoiceWebSocket) 
-        // will handle setting microphoneActive to true once "ready_for_test" is received
     }, 500);
   };
 
   // --- Canvas Drawing ---
-
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !pixelsPerMm) return;
     const ctx = canvas.getContext('2d');
     const { width, height } = canvas;
     
-    ctx.fillStyle = '#111827'; // Dark background for canvas
+    ctx.fillStyle = '#111827'; 
     ctx.fillRect(0, 0, width, height);
     
     if (testComplete && !showReport) drawFullChart(ctx, width, height);
@@ -846,7 +799,7 @@ const finishTest = () => {
       
       if (userResponses[i] !== undefined) {
         ctx.font = '24px sans-serif';
-        ctx.fillStyle = userResponses[i] ? '#22c55e' : '#ef4444'; // Green / Red
+        ctx.fillStyle = userResponses[i] ? '#22c55e' : '#ef4444'; 
         ctx.textAlign = 'center';
         ctx.fillText(userResponses[i] ? '✓' : '✗', x, rowY + (size / 2) + 40);
       }
@@ -925,7 +878,6 @@ const finishTest = () => {
     const sizeInMm = getAcuitySizeInMm(currentAcuity);
     return sizeInMm * pixelsPerMm;
   };
-
 
   const generateRowPattern = () => {
     const orientations = ['right', 'left', 'up', 'down'];
