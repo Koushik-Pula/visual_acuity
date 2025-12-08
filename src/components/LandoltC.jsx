@@ -13,7 +13,7 @@ const IconHome = ({ className }) => (
   </svg>
 );
 
-const Report = ({ finalAcuity, history, onRestart, onClose }) => {
+const Report = ({ finalAcuity, history, onRestart, onHome }) => {
   const getDecimalAcuity = (acuity) => {
     if (!acuity) return 0;
     const parts = acuity.split('/');
@@ -83,7 +83,7 @@ const Report = ({ finalAcuity, history, onRestart, onClose }) => {
 
         <div className="bg-gray-900 p-6 flex justify-between gap-4 border-t border-gray-700">
           <button 
-            onClick={onClose}
+            onClick={onHome}
             className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white transition-all font-semibold"
           >
             <IconHome className="w-5 h-5" />
@@ -138,7 +138,7 @@ const IconMinimize = ({ className }) => (
 );
 // --- End Icons ---
 
-const LandoltC = ({ onClose }) => {
+const LandoltC = ({ onClose, onHome, onUserUpdate }) => {
   const voiceSocketRef = useRef(null);
   const recognitionRef = useRef(null);
   const canvasRef = useRef(null);
@@ -188,31 +188,31 @@ const LandoltC = ({ onClose }) => {
   
   const timerRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
-  
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // --- NEW: Guard Ref to prevent double submission ---
+  const submissionRef = useRef(false);
 
-  // --- CRITICAL FIX START: Added currentAcuityIndex to Ref ---
+  // --- Track History and Acuity in Ref ---
   const testStateRef = useRef({
     currentSymbolIndex: 0,
     userResponses: [],
     chartPattern: [],
     testStage: 'initial-prep',
     isPaused: false,
-    currentAcuityIndex: startingIndex // Initialize with starting index
+    currentAcuityIndex: startingIndex,
+    history: [] 
   });
 
   // Keep ref synced with state on every render
   useEffect(() => {
-    testStateRef.current = {
-      currentSymbolIndex,
-      userResponses,
-      chartPattern,
-      testStage,
-      isPaused,
-      currentAcuityIndex // Update ref when state changes
-    };
+    testStateRef.current.currentSymbolIndex = currentSymbolIndex;
+    testStateRef.current.userResponses = userResponses;
+    testStateRef.current.chartPattern = chartPattern;
+    testStateRef.current.testStage = testStage;
+    testStateRef.current.isPaused = isPaused;
+    testStateRef.current.currentAcuityIndex = currentAcuityIndex;
   }, [currentSymbolIndex, userResponses, chartPattern, testStage, isPaused, currentAcuityIndex]);
-  // --- CRITICAL FIX END ---
 
   // --- Fullscreen Controls ---
   const requestFullscreen = () => {
@@ -590,17 +590,18 @@ const LandoltC = ({ onClose }) => {
     const correctCount = responses.filter(r => r === true).length;
     const couldSee = (!forceFail && correctCount === rowSize);
 
-    setTestHistory(prev => [
-      ...prev,
-      { acuity: ACUITY_LEVELS[currentAcuityIndex], couldSee }
-    ]);
+    // Use Ref to get current level string
+    const currentLevelStr = ACUITY_LEVELS[testStateRef.current.currentAcuityIndex];
+    const newEntry = { acuity: currentLevelStr, couldSee };
+    
+    testStateRef.current.history.push(newEntry);
+    setTestHistory(prev => [...prev, newEntry]);
 
     setTimeout(() => {
       decideNextStep(couldSee);
     }, 300);
   };
 
-  // --- CRITICAL FIX START: Read currentAcuityIndex from Ref ---
   const decideNextStep = (couldSee) => {
     // Read from Ref to ensure we have the latest value in the closure
     const curr = testStateRef.current.currentAcuityIndex;
@@ -615,19 +616,17 @@ const LandoltC = ({ onClose }) => {
 
     if (curr === 1) { // 6/4
       if (couldSee) setFinalLogic(0); // Go to 6/3
-      else setFinalLogic(2);          // Go to 6/5 (Corrected flow)
+      else setFinalLogic(2);          // Go to 6/5
       return;
     }
 
     if (curr === 0) { // 6/3
-      setFinalAcuity(couldSee ? "6/3" : "6/4");
-      finishTest();
+      finishTest(couldSee ? "6/3" : "6/4");
       return;
     }
 
     if (curr === 2) { // 6/5
-      setFinalAcuity(couldSee ? "6/5" : "6/6");
-      finishTest();
+      finishTest(couldSee ? "6/5" : "6/6");
       return;
     }
 
@@ -638,8 +637,7 @@ const LandoltC = ({ onClose }) => {
     }
 
     if (curr === 4) { // 6/8
-      setFinalAcuity(couldSee ? "6/8" : "6/9");
-      finishTest();
+      finishTest(couldSee ? "6/8" : "6/9");
       return;
     }
 
@@ -650,18 +648,15 @@ const LandoltC = ({ onClose }) => {
     }
 
     if (curr === 6) { // 6/12
-      setFinalAcuity(couldSee ? "6/12" : "6/18");
-      finishTest();
+      finishTest(couldSee ? "6/12" : "6/18");
       return;
     }
 
     if (curr === 8) { // 6/24
-      setFinalAcuity("6/24");
-      finishTest();
+      finishTest("6/24");
       return;
     }
   };
-  // --- CRITICAL FIX END ---
 
   const setFinalLogic = (nextIndex) => {
     setTestStage("transition");
@@ -672,7 +667,15 @@ const LandoltC = ({ onClose }) => {
     }, 200);
   };
 
-  const finishTest = () => {
+  // --- FIXED: Added submissionRef to prevent double storage ---
+  const finishTest = async (calculatedFinalAcuity = null) => {
+    if (submissionRef.current) return; // Stop if already submitting
+    submissionRef.current = true;      // Lock submission
+
+    // 1. Use argument if provided, otherwise fall back to state
+    const finalResult = calculatedFinalAcuity || finalAcuity || "N/A";
+
+    setFinalAcuity(finalResult);
     setTestComplete(true);
     setTestStage("completed");
     setShowReport(true);
@@ -681,6 +684,52 @@ const LandoltC = ({ onClose }) => {
       voiceSocketRef.current.send(
         JSON.stringify({ command: "STOP_LISTENING" })
       );
+    }
+
+    try {
+        const token = localStorage.getItem('authToken');
+        if (!token) return; 
+
+        // Helper to calculate decimal for the API
+        const getDecimalAcuity = (acuity) => {
+            if (!acuity || acuity === "N/A") return 0;
+            const parts = acuity.split('/');
+            if (parts.length !== 2) return 0;
+            return parseFloat(parts[0]) / parseFloat(parts[1]);
+        };
+
+        // 2. Use Ref history (always up to date)
+        const historyToSave = testStateRef.current.history;
+
+        const payload = {
+            test_type: "LandoltC",
+            final_acuity: finalResult,
+            decimal_acuity: getDecimalAcuity(finalResult),
+            history: historyToSave,
+            timestamp: new Date().toISOString()
+        };
+
+        // 3. Point to Port 8000 (Python Backend)
+        const response = await fetch(`http://localhost:8000/api/save-test-result`, {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${token}`, 
+                'Content-Type': 'application/json' 
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+            const updatedUser = await response.json();
+            if (onUserUpdate) {
+                onUserUpdate(updatedUser);
+            }
+            console.log("Results saved successfully");
+        } else {
+            console.error("Failed to save results");
+        }
+    } catch (error) {
+        console.error("Error saving results:", error);
     }
   };
 
@@ -738,14 +787,18 @@ const LandoltC = ({ onClose }) => {
     setIsPaused(false);
     setShowReport(false); 
     
-    // --- CRITICAL FIX: Reset Ref fully including acuity index ---
+    // Unlock submission ref for next attempt
+    submissionRef.current = false;
+
+    // Reset Ref fully including history
     testStateRef.current = {
         currentSymbolIndex: 0,
         userResponses: [],
         chartPattern: [],
         testStage: 'initial-prep',
         isPaused: false,
-        currentAcuityIndex: startingIndex 
+        currentAcuityIndex: startingIndex,
+        history: [] // Clear Ref history
     };
 
     setTimeout(() => {
@@ -900,6 +953,7 @@ const LandoltC = ({ onClose }) => {
           finalAcuity={finalAcuity}
           history={testHistory}
           onRestart={handleRestart}
+          onHome={onHome} 
           onClose={onClose}
         />
       ) : (

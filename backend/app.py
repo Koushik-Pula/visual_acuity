@@ -10,6 +10,14 @@ from datetime import datetime, timedelta
 from fastapi import FastAPI, WebSocket, HTTPException, status, Depends, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer
+
+# app.py
+
+from fastapi import Depends, HTTPException, status
+from models import User, TestReport  # <--- Make sure TestReport is added here
+from auth import get_current_user    # Adjust import path if your auth logic is in app.py
+
+
 import asyncio
 from collections import deque
 from dotenv import load_dotenv
@@ -210,6 +218,43 @@ async def process_image(image_data):
         return {"error": str(e)}
 
 # --- Auth Endpoints (Preserved) ---
+# app.py
+
+# In app.py
+
+@app.post("/api/save-test-result", response_model=User)
+async def save_test_result(
+    report: TestReport, 
+    current_user: User = Depends(get_current_user)
+):
+    print(f"DEBUG: Endpoint hit by user: {current_user.email}")
+    print(f"DEBUG: User ID type: {type(current_user.id)} Value: {current_user.id}")
+    
+    # 1. Convert to dictionary
+    report_data = report.dict()
+    print(f"DEBUG: Payload received: {report_data}")
+    
+    # 2. Try updating
+    # We use current_user.id directly. Ensure models.py PyObjectId handles the conversion.
+    update_result = await users_collection.update_one(
+        {"_id": current_user.id},
+        {"$push": {"test_history": report_data}}
+    )
+
+    print(f"DEBUG: Matched: {update_result.matched_count}, Modified: {update_result.modified_count}")
+
+    if update_result.matched_count == 0:
+        print("DEBUG: ERROR - No user found with that ID to update.")
+        raise HTTPException(status_code=400, detail="User not found for update")
+
+    if update_result.modified_count == 0:
+        print("DEBUG: WARNING - User found, but document was not modified (maybe data was same?)")
+        # In this specific case, $push should always modify, so this implies a deeper issue if it happens.
+
+    # 3. Fetch updated user
+    updated_user = await users_collection.find_one({"_id": current_user.id})
+    return updated_user
+
 @app.post("/auth/register", response_model=Token)
 async def register(user: UserCreate):
     existing_user = await users_collection.find_one({"email": user.email})

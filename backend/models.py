@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from bson import ObjectId
 
@@ -18,6 +18,19 @@ class PyObjectId(ObjectId):
     def __modify_schema__(cls, field_schema):
         field_schema.update(type="string")
 
+# --- NEW: Sub-models for Test History ---
+class TestAttempt(BaseModel):
+    acuity: str
+    couldSee: bool
+
+class TestReport(BaseModel):
+    test_type: str = "LandoltC"
+    final_acuity: str
+    decimal_acuity: float
+    history: List[TestAttempt]
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+# --- User Models ---
 class UserBase(BaseModel):
     email: EmailStr
     full_name: str
@@ -43,6 +56,10 @@ class UserInDB(UserBase):
     focal_length: Optional[float] = None
     pixels_per_mm: Optional[float] = None
     screen_ppi: Optional[float] = None
+    
+    # NEW: Store list of reports
+    test_history: List[TestReport] = []
+    
     is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -57,6 +74,10 @@ class User(UserBase):
     focal_length: Optional[float] = None
     pixels_per_mm: Optional[float] = None
     screen_ppi: Optional[float] = None
+    
+    # NEW: Return history to frontend
+    test_history: List[TestReport] = []
+    
     is_active: bool = True
     created_at: datetime
     updated_at: datetime
