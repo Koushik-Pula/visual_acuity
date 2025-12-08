@@ -5,6 +5,7 @@ import os
 import logging
 import json
 import re
+import difflib  # Added for fuzzy matching
 from datetime import datetime, timedelta
 from fastapi import FastAPI, WebSocket, HTTPException, status, Depends, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +13,7 @@ from fastapi.security import HTTPBearer
 import asyncio
 from collections import deque
 from dotenv import load_dotenv
-from vosk import KaldiRecognizer
+# Vosk import removed as requested
 import time
 
 # --- All your auth, models, and db imports are preserved ---
@@ -31,7 +32,7 @@ from database import users_collection, close_database_connection
 load_dotenv()
 
 # Set logging to DEBUG to see all messages
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Face Detection API with Authentication")
@@ -48,13 +49,18 @@ security = HTTPBearer()
 
 # --- Face Detection & Calibration (Preserved) ---
 MODEL_PATH = "face_detection_yunet_2023mar.onnx"
-if not os.path.exists(MODEL_PATH):
-    logger.error(f"Model file '{MODEL_PATH}' not found!")
-    raise FileNotFoundError(f"Model file '{MODEL_PATH}' not found!")
-
-face_detector = cv2.FaceDetectorYN.create(
-    MODEL_PATH, "", (320, 320), score_threshold=0.4, nms_threshold=0.3, top_k=5000
-)
+face_detector = None
+try:
+    if os.path.exists(MODEL_PATH):
+        face_detector = cv2.FaceDetectorYN.create(
+            MODEL_PATH, "", (320, 320), score_threshold=0.4, nms_threshold=0.3, top_k=5000
+        )
+    else:
+        logger.error(f"Model file '{MODEL_PATH}' not found!")
+        # raise FileNotFoundError(f"Model file '{MODEL_PATH}' not found!") 
+        # Kept non-blocking for now per your original structure, but logged error.
+except Exception as e:
+    logger.error(f"Failed to load Face Detector: {e}")
 
 KNOWN_FACE_WIDTH = 0.15  
 FOCAL_LENGTH = None  
@@ -65,20 +71,7 @@ calibration_active = False
 distance_measurement_active = False
 previous_distances = deque(maxlen=5)
 
-voice_model = None
-
-def init_voice_model():
-    global voice_model
-    try:
-        model_path = "models/vosk-model-small-en-us-0.15"
-        if os.path.exists(model_path):
-            from vosk import Model
-            voice_model = Model(model_path)
-            logger.info("Vosk model loaded successfully")
-        else:
-            logger.warning(f"Vosk model not found at {model_path}. Voice recognition will not work.")
-    except Exception as e:
-        logger.error(f"Error loading Vosk model: {e}")
+# (Vosk init_voice_model removed as it's no longer needed)
 
 def calculate_distance(face_width):
     return round((KNOWN_FACE_WIDTH * FOCAL_LENGTH) / face_width, 2) if FOCAL_LENGTH and face_width > 0 else -1
@@ -146,6 +139,9 @@ def create_processed_image(frame, faces, distance=-1, quality=70):
 
 async def process_image(image_data):
     global calibration_active, distance_measurement_active
+    if face_detector is None:
+        return {"error": "Face detector not initialized"}
+
     try:
         img_bytes = base64.b64decode(image_data.split(',')[-1])
         img_np = np.frombuffer(img_bytes, np.uint8)
@@ -380,141 +376,141 @@ async def get_screen_ppi(current_user: User = Depends(get_current_active_user)):
         logger.error(f"Error fetching screen PPI: {e}")
         return {"screen_ppi": 96.0}
 
-# --- NEW: Robust Voice Processing Function ---
+# --- UPDATED: Text-Based Voice Logic (REPLACED Vosk logic) ---
 def process_voice_command(text: str):
     if not text:
         return None
         
+    # 1. Clean the text: Lowercase + Remove punctuation (dots, question marks)
+    # This fixes issues where browser sends "Up." or "Right?"
     text = text.lower().strip()
-    logger.info(f"[VOICE] Processing text: '{text}'")
+    text = re.sub(r'[^\w\s]', '', text) 
     
-    up_patterns = {"up", "above", "top", "op", "app", "hope", "hub"}
-    down_patterns = {"down", "below", "bottom", "don", "dawn", "town"}
-    left_patterns = {"left", "lift", "let", "leaf", "laugh"}
-    right_patterns = {"right", "write", "rite", "white", "ride", "bright", "light"}
+    logger.info(f"[VOICE] Processing cleaned text: '{text}'")
+    
+    # 2. Exact phrase mapping
+    phrase_map = {
+        "to the left": "left",
+        "to the right": "right",
+        "upward": "up",
+        "upwards": "up",
+        "go up": "up",
+        "downward": "down",
+        "downwards": "down",
+        "go down": "down",
+        "stop": "pause",     
+        "wait": "pause",
+        "hold on": "pause"
+    }
+    if text in phrase_map:
+        return phrase_map[text]
+    
+    # 3. Keyword Search (Token based)
+    directions = {
+        "up": {"up", "above", "top", "app", "up."}, # Added common misinterpretations
+        "down": {"down", "below", "bottom", "done"},
+        "left": {"left", "lift", "light"}, # 'light' sometimes heard for 'left'
+        "right": {"right", "write", "white", "alright", "rite"},
+        "pause": {"pause", "stop", "wait", "halt"}
+    }
     
     words = set(text.split())
     
-    if words.intersection(up_patterns):
-        logger.info(f"[VOICE] Matched UP from: '{text}'")
-        return "up"
-    elif words.intersection(down_patterns):
-        logger.info(f"[VOICE] Matched DOWN from: '{text}'")
-        return "down"
-    elif words.intersection(left_patterns):
-        logger.info(f"[VOICE] Matched LEFT from: '{text}'")
-        return "left"
-    elif words.intersection(right_patterns):
-        logger.info(f"[VOICE] Matched RIGHT from: '{text}'")
-        return "right"
+    # Exact/partial set match
+    for dir_name, patterns in directions.items():
+        if words.intersection(patterns):
+            return dir_name
+            
+    # Fuzzy fallback
+    for word in words:
+        for dir_name, patterns in directions.items():
+            for pattern in patterns:
+                # Use strict threshold (0.85) to avoid false positives
+                similarity = difflib.SequenceMatcher(None, word, pattern).ratio()
+                if similarity > 0.85:
+                    logger.info(f"[VOICE] Fuzzy match: '{word}' -> '{dir_name}'")
+                    return dir_name
     
-    if text in ["u", "d", "l", "r"]:
-        result = {"u": "up", "d": "down", "l": "left", "r": "right"}[text]
-        logger.info(f"[VOICE] Matched {result.upper()} from single character: '{text}'")
-        return result
-    
-    logger.warning(f"[VOICE] No match found for: '{text}'")
     return None
 
-# --- NEW: Robust Voice WebSocket Endpoint ---
+# --- UPDATED: Voice WebSocket (Handles Text Only) ---
 @app.websocket("/ws_voice")
 async def websocket_voice(websocket: WebSocket):
     await websocket.accept()
-    logger.info("[VOICE] WebSocket accepted, awaiting authentication")
+    logger.info("[VOICE] WebSocket accepted")
     
-    global voice_model
-    recognizer = None
-    authenticated = False
     current_symbol = None 
     
     try:
         token = websocket.query_params.get("token")
         if not token:
-            logger.error("[VOICE] No token provided in query params")
             await websocket.close(1008, "Authentication required")
             return
         
         user = await verify_websocket_token(token)
         if not user:
-            logger.error("[VOICE] Invalid token")
-            await websocket.send_json({"error": "Invalid authentication token"})
-            await websocket.close(1008, "Invalid authentication token")
+            await websocket.close(1008, "Invalid token")
             return
         
-        authenticated = True
-        logger.info(f"[VOICE] Authenticated as: {user.full_name}")
         await websocket.send_json({"status": "authenticated", "user": user.full_name})
 
         while True:
-            message = await websocket.receive()
-            
-            if message["type"] == "websocket.disconnect":
-                logger.info("[VOICE] Client disconnected")
+            try:
+                # We expect text JSON from Web Speech API now, not bytes
+                message = await websocket.receive_text()
+                data = json.loads(message)
+            except json.JSONDecodeError:
+                continue
+            except WebSocketDisconnect:
+                logger.info("[VOICE] Client disconnected gracefully")
                 break
-                
-            if "text" in message:
-                data = json.loads(message["text"])
-                command = data.get("command")
-                
-                if command == "prepare_voice_model":
-                    logger.info("[VOICE] Preparing voice model...")
-                    if voice_model is None:
-                        init_voice_model()
-                    if voice_model:
-                        recognizer = KaldiRecognizer(voice_model, 16000)
-                        recognizer.SetWords(True)
-                        logger.info("[VOICE] Voice model ready")
-                        await websocket.send_json({"status": "ready_for_test"})
-                    else:
-                        logger.error("[VOICE] Voice model failed to load")
-                        await websocket.send_json({"error": "Failed to load voice model"})
-                
-                elif command == "START_SYMBOL" or command == "NEXT_SYMBOL":
-                    current_symbol = data.get("orientation")
-                    if recognizer:
-                        recognizer.Reset() 
-                    logger.info(f"[VOICE] Set to listen for: {current_symbol.upper()}")
-                
-                elif command == "STOP_LISTENING":
-                    current_symbol = None
-                    if recognizer:
-                        recognizer.Reset()
-                    logger.info("[VOICE] Listening stopped by client")
+            
+            command = data.get("command")
+            
+            if command == "prepare_voice_model":
+                 # Dummy response to keep frontend state machine happy
+                 await websocket.send_json({"status": "ready_for_test"})
 
-            elif "bytes" in message and recognizer and current_symbol:
-                if recognizer.AcceptWaveform(message["bytes"]):
-                    result_json = recognizer.Result()
-                    result = json.loads(result_json)
+            elif command == "START_SYMBOL" or command == "NEXT_SYMBOL":
+                # Ensure we strip whitespace/case from the game state too
+                raw_orientation = data.get("orientation", "")
+                current_symbol = raw_orientation.lower().strip()
+                logger.info(f"[VOICE] Game Expecting: '{current_symbol}'")
+            
+            elif command == "STOP_LISTENING":
+                current_symbol = None
+            
+            # Input from Web Speech API
+            elif command == "VOICE_INPUT":
+                raw_text = data.get("text", "")
+                processed_cmd = process_voice_command(raw_text)
+                
+                if processed_cmd:
+                    logger.info(f"[VOICE] Matched Command: '{processed_cmd}' vs Expected: '{current_symbol}'")
                     
-                    if result.get('text'):
-                        raw_text = result['text']
-                        command = process_voice_command(raw_text)
-                        
-                        if command:
-                            is_correct = (command == current_symbol)
-                            logger.info(f"[VOICE] Heard: '{raw_text}' -> {command.upper()} | Expected: {current_symbol.upper()} | Correct: {is_correct}")
-                            await websocket.send_json({
-                                "status": "CORRECT" if is_correct else "INCORRECT",
-                                "text": raw_text
-                            })
-                            current_symbol = None 
-                        else:
-                            logger.warning(f"[VOICE] Unrecognized: '{raw_text}'")
-                            await websocket.send_json({"status": "UNRECOGNIZED", "text": raw_text})
-                    else:
-                        partial_result = json.loads(recognizer.PartialResult())
-                        if partial_result.get('partial'):
-                            await websocket.send_json({"status": "partial", "partial": partial_result['partial']})
+                    if processed_cmd == "pause":
+                        await websocket.send_json({"status": "PAUSE_REQUESTED"})
+                        continue
 
-    except (WebSocketDisconnect, RuntimeError) as e:
-        logger.info(f"[VOICE] Connection closed: {e}")
+                    if current_symbol:
+                        is_correct = (processed_cmd == current_symbol)
+                        
+                        await websocket.send_json({
+                            "status": "CORRECT" if is_correct else "INCORRECT",
+                            "text": raw_text
+                        })
+                        
+                        # Only clear if correct? No, clear to prevent double processing of same word
+                        if is_correct:
+                            current_symbol = None 
+                else:
+                    logger.info(f"[VOICE] Unrecognized: '{raw_text}'")
+                    await websocket.send_json({"status": "UNRECOGNIZED", "text": raw_text})
+
+    except WebSocketDisconnect:
+        logger.info("[VOICE] Disconnected")
     except Exception as e:
         logger.error(f"[VOICE] Unexpected error: {e}", exc_info=True)
-    finally:
-        current_symbol = None
-        if recognizer:
-            recognizer.Reset()
-        logger.info("[VOICE] WebSocket cleanup complete")
 
 
 @app.get("/health")
@@ -524,7 +520,7 @@ async def health_check():
 @app.on_event("startup")
 async def startup_event():
     logger.info("Face Detection API with Authentication started")
-    init_voice_model()
+    # init_voice_model() - Removed
 
 @app.on_event("shutdown")
 async def shutdown_event():
