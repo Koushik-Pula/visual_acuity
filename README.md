@@ -14,6 +14,16 @@ visual-acuity-app/
 ├── package.json            # Frontend dependencies
 └── README.md
 
+visual-acuity-app/
+├── backend/
+│   ├── app.py              # FastAPI backend server
+│   └── requirements.txt    # Backend dependencies
+├── src/
+│   ├── App.jsx             # Main React entry
+│   └── LandoltC.jsx        # Landolt C renderer
+├── package.json            # Frontend dependencies
+└── README.md
+
 
 ## Prerequisites
 
