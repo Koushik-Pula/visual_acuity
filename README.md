@@ -1,105 +1,82 @@
-# Face Detection App
+# Visual Acuity Test App
 
-This is a simple face detection app built with React + Vite on the frontend and Python on the backend.
+A modern web-based visual acuity testing system built using React + Vite on the frontend and Python on the backend. The app presents Landolt C optotypes, handles test progression logic, supports voice input, and communicates with a Python backend.
 
 ## Project Structure
 
-```
-face-detection-app/
+visual-acuity-app/
 ├── backend/
-│   └── app.py         # Python backend server
+│   ├── app.py              # Python backend server
+│   └── requirements.txt    # Backend dependencies
 ├── src/
-│   └── App.jsx        # Main React component
-|   |__ LandoltC.jsx      
-├── package.json       # Frontend configuration
+│   ├── App.jsx             # Main React entry
+│   ├── LandoltC.jsx        # Landolt C renderer
+├── package.json            # Frontend dependencies
 └── README.md
-```
-
 
 ## Prerequisites
 
-- Node.js and npm installed
-- Python installed
+- Node.js (v16+)
+- npm
+- Python 3.8+ (3.10 is best)
 
-## Getting Started
+# Getting Started
 
-### 1. Clone the Repository
+## 1. Clone the Repository
 
-```bash
-git clone https://github.com/your-username/face-detection-app.git
-cd face-detection-app
-```
+git clone https://github.com/<your-username>/<your-repo>.git
+cd <your-repo>
 
-## Frontend Setup (React + Vite)
+# Frontend Setup (React + Vite)
 
-### Install Dependencies
+## Install Dependencies
 
-```bash
 npm install
-```
 
-### Start the Frontend Server
+## Start Development Server
 
-In Terminal 1, run:
-
-```bash
 npm run dev
-```
 
-This will start the React development server at:
-
+Frontend runs at:
 http://localhost:5173
 
-## Backend Setup (Python)
+# Backend Setup (Python)
 
-Make sure you have Python installed.
-
-### Navigate to the backend folder
-
-```bash
 cd backend
-```
 
-### (Optional) Create and activate virtual environment
+## (Optional) Create Virtual Environment
 
-```bash
+macOS / Linux:
 python -m venv venv
-source venv/bin/activate      # On Windows: venv\Scripts\activate
-```
+source venv/bin/activate
 
-### Install dependencies
+Windows:
+python -m venv venv
+venv\Scripts\activate
 
-If you're using Flask:
+## Install Backend Dependencies
 
-```bash
-pip install flask
-```
+pip install -r requirements.txt
 
-If you're using FastAPI and Uvicorn:
+## Run the Backend Server
 
-```bash
-pip install fastapi uvicorn
-```
+FastAPI (if used):
+uvicorn app:app --reload
+Runs at: http://localhost:8000
 
-### Run the Backend Server
+# Running the Full System
 
-In Terminal 2, run:
+Terminal 1 — Frontend:
+npm run dev
 
-```bash
-python app.py                # For Flask
+Terminal 2 — Backend:
+python backend/app.py
 
-```
+# Features
 
-Backend will be running on:
-
-- Flask: http://localhost:5000
-- FastAPI: http://localhost:8000
-
-
-## Ready
-
-- Frontend: http://localhost:5173
-- Backend: http://localhost:5000 
-
-Start both servers in separate terminals and begin using the app.
-
+- Landolt C optotype rendering
+- Level progression logic
+- Voice-based response detection
+- Test history tracking
+- Real-time scaling based on screen size and distance
+- Python backend for processing
