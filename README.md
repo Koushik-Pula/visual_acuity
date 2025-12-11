@@ -4,6 +4,7 @@ A modern web-based visual acuity testing system built using React + Vite on the 
 
 ## Project Structure
 
+```text
 visual-acuity-app/
 ├── backend/
 │   ├── app.py              # FastAPI backend server
@@ -13,16 +14,7 @@ visual-acuity-app/
 │   └── LandoltC.jsx        # Landolt C renderer
 ├── package.json            # Frontend dependencies
 └── README.md
-
-visual-acuity-app/
-├── backend/
-│   ├── app.py              # FastAPI backend server
-│   └── requirements.txt    # Backend dependencies
-├── src/
-│   ├── App.jsx             # Main React entry
-│   └── LandoltC.jsx        # Landolt C renderer
-├── package.json            # Frontend dependencies
-└── README.md
+```
 
 
 ## Prerequisites
