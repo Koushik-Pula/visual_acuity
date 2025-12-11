@@ -14,7 +14,6 @@ const IconHome = ({ className }) => (
 );
 
 const Report = ({ finalAcuity, history, onRestart, onClose }) => {
-  // Convert "6/6" to 1.0, "6/12" to 0.5, etc.
   const getDecimalAcuity = (acuity) => {
     if (!acuity) return 0;
     const parts = acuity.split('/');

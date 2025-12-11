@@ -28,7 +28,6 @@ const RecalibrationModal = ({ onClose, onComplete }) => {
   useEffect(() => {
     if (step !== 1) return;
 
-    // Use public calibration WebSocket - no auth required
     ws.current = new WebSocket(`ws://${window.location.host}/ws/calibration`);
     
     ws.current.onopen = () => {

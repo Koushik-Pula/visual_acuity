@@ -603,56 +603,55 @@ const LandoltC = ({ onClose, onHome, onUserUpdate }) => {
   };
 
   const decideNextStep = (couldSee) => {
-    // Read from Ref to ensure we have the latest value in the closure
     const curr = testStateRef.current.currentAcuityIndex;
 
     console.log("DECIDE:", curr, ACUITY_LEVELS[curr], "couldSee:", couldSee);
 
-    if (curr === 3) { // 6/6
-      if (couldSee) setFinalLogic(1); // Go to 6/4
-      else setFinalLogic(5);          // Go to 6/9
+    if (curr === 3) { 
+      if (couldSee) setFinalLogic(1); 
+      else setFinalLogic(5);          
       return;
     }
 
-    if (curr === 1) { // 6/4
-      if (couldSee) setFinalLogic(0); // Go to 6/3
-      else setFinalLogic(2);          // Go to 6/5
+    if (curr === 1) { 
+      if (couldSee) setFinalLogic(0); 
+      else setFinalLogic(2);          
       return;
     }
 
-    if (curr === 0) { // 6/3
+    if (curr === 0) { 
       finishTest(couldSee ? "6/3" : "6/4");
       return;
     }
 
-    if (curr === 2) { // 6/5
+    if (curr === 2) { 
       finishTest(couldSee ? "6/5" : "6/6");
       return;
     }
 
-    if (curr === 5) { // 6/9
+    if (curr === 5) { 
       if (couldSee) setFinalLogic(4);
       else setFinalLogic(7);
       return;
     }
 
-    if (curr === 4) { // 6/8
+    if (curr === 4) { 
       finishTest(couldSee ? "6/8" : "6/9");
       return;
     }
 
-    if (curr === 7) { // 6/18
+    if (curr === 7) {
       if (couldSee) setFinalLogic(6);
       else setFinalLogic(8);
       return;
     }
 
-    if (curr === 6) { // 6/12
+    if (curr === 6) { 
       finishTest(couldSee ? "6/12" : "6/18");
       return;
     }
 
-    if (curr === 8) { // 6/24
+    if (curr === 8) { 
       finishTest("6/24");
       return;
     }
@@ -660,19 +659,18 @@ const LandoltC = ({ onClose, onHome, onUserUpdate }) => {
 
   const setFinalLogic = (nextIndex) => {
     setTestStage("transition");
-    setCurrentAcuityIndex(nextIndex); // Updates State (for UI)
-    // Ref update is handled by the useEffect logic automatically
+    setCurrentAcuityIndex(nextIndex); 
+ 
     setTimeout(() => {
       startSymbolTest();
     }, 200);
   };
 
-  // --- FIXED: Added submissionRef to prevent double storage ---
+  
   const finishTest = async (calculatedFinalAcuity = null) => {
-    if (submissionRef.current) return; // Stop if already submitting
-    submissionRef.current = true;      // Lock submission
+    if (submissionRef.current) return; 
+    submissionRef.current = true;      
 
-    // 1. Use argument if provided, otherwise fall back to state
     const finalResult = calculatedFinalAcuity || finalAcuity || "N/A";
 
     setFinalAcuity(finalResult);
@@ -690,7 +688,6 @@ const LandoltC = ({ onClose, onHome, onUserUpdate }) => {
         const token = localStorage.getItem('authToken');
         if (!token) return; 
 
-        // Helper to calculate decimal for the API
         const getDecimalAcuity = (acuity) => {
             if (!acuity || acuity === "N/A") return 0;
             const parts = acuity.split('/');
@@ -698,7 +695,7 @@ const LandoltC = ({ onClose, onHome, onUserUpdate }) => {
             return parseFloat(parts[0]) / parseFloat(parts[1]);
         };
 
-        // 2. Use Ref history (always up to date)
+
         const historyToSave = testStateRef.current.history;
 
         const payload = {
@@ -709,7 +706,7 @@ const LandoltC = ({ onClose, onHome, onUserUpdate }) => {
             timestamp: new Date().toISOString()
         };
 
-        // 3. Point to Port 8000 (Python Backend)
+
         const response = await fetch(`http://localhost:8000/api/save-test-result`, {
             method: 'POST',
             headers: { 
@@ -787,10 +784,9 @@ const LandoltC = ({ onClose, onHome, onUserUpdate }) => {
     setIsPaused(false);
     setShowReport(false); 
     
-    // Unlock submission ref for next attempt
+  
     submissionRef.current = false;
 
-    // Reset Ref fully including history
     testStateRef.current = {
         currentSymbolIndex: 0,
         userResponses: [],
@@ -798,7 +794,7 @@ const LandoltC = ({ onClose, onHome, onUserUpdate }) => {
         testStage: 'initial-prep',
         isPaused: false,
         currentAcuityIndex: startingIndex,
-        history: [] // Clear Ref history
+        history: [] 
     };
 
     setTimeout(() => {
@@ -806,7 +802,7 @@ const LandoltC = ({ onClose, onHome, onUserUpdate }) => {
     }, 500);
   };
 
-  // --- Canvas Drawing ---
+  
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !pixelsPerMm) return;
@@ -860,7 +856,7 @@ const LandoltC = ({ onClose, onHome, onUserUpdate }) => {
   };
 
   const drawArrow = (ctx, x, y, size) => {
-    ctx.fillStyle = '#3b82f6'; // Blue
+    ctx.fillStyle = '#3b82f6'; 
     ctx.beginPath();
     ctx.moveTo(x, y - (size / 2) - 30);
     ctx.lineTo(x - 10, y - (size / 2) - 15);
@@ -918,7 +914,7 @@ const LandoltC = ({ onClose, onHome, onUserUpdate }) => {
   };
 
   const getAcuitySizeInMm = (acuityStr) => {
-    const angleInRadians = (5 / 60) * (Math.PI / 180); // 5 arcmin
+    const angleInRadians = (5 / 60) * (Math.PI / 180); 
     const distanceInMm = viewingDistance * 10;
     const standardSize = 2 * distanceInMm * Math.tan(angleInRadians / 2);
     const acuityRatio = acuityToNumber(acuityStr) / 6.0;

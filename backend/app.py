@@ -5,7 +5,7 @@ import os
 import logging
 import json
 import re
-import difflib  # Added for fuzzy matching
+import difflib  
 from datetime import datetime, timedelta
 from fastapi import FastAPI, WebSocket, HTTPException, status, Depends, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,14 +14,14 @@ from fastapi.security import HTTPBearer
 # app.py
 
 from fastapi import Depends, HTTPException, status
-from models import User, TestReport  # <--- Make sure TestReport is added here
-from auth import get_current_user    # Adjust import path if your auth logic is in app.py
+from models import User, TestReport  
+from auth import get_current_user    
 
 
 import asyncio
 from collections import deque
 from dotenv import load_dotenv
-# Vosk import removed as requested
+
 import time
 
 # --- All your auth, models, and db imports are preserved ---
@@ -65,8 +65,7 @@ try:
         )
     else:
         logger.error(f"Model file '{MODEL_PATH}' not found!")
-        # raise FileNotFoundError(f"Model file '{MODEL_PATH}' not found!") 
-        # Kept non-blocking for now per your original structure, but logged error.
+        
 except Exception as e:
     logger.error(f"Failed to load Face Detector: {e}")
 
@@ -79,7 +78,7 @@ calibration_active = False
 distance_measurement_active = False
 previous_distances = deque(maxlen=5)
 
-# (Vosk init_voice_model removed as it's no longer needed)
+
 
 def calculate_distance(face_width):
     return round((KNOWN_FACE_WIDTH * FOCAL_LENGTH) / face_width, 2) if FOCAL_LENGTH and face_width > 0 else -1
@@ -230,12 +229,10 @@ async def save_test_result(
     print(f"DEBUG: Endpoint hit by user: {current_user.email}")
     print(f"DEBUG: User ID type: {type(current_user.id)} Value: {current_user.id}")
     
-    # 1. Convert to dictionary
+  
     report_data = report.dict()
     print(f"DEBUG: Payload received: {report_data}")
     
-    # 2. Try updating
-    # We use current_user.id directly. Ensure models.py PyObjectId handles the conversion.
     update_result = await users_collection.update_one(
         {"_id": current_user.id},
         {"$push": {"test_history": report_data}}
@@ -249,9 +246,9 @@ async def save_test_result(
 
     if update_result.modified_count == 0:
         print("DEBUG: WARNING - User found, but document was not modified (maybe data was same?)")
-        # In this specific case, $push should always modify, so this implies a deeper issue if it happens.
+        
 
-    # 3. Fetch updated user
+    # Fetch updated user
     updated_user = await users_collection.find_one({"_id": current_user.id})
     return updated_user
 

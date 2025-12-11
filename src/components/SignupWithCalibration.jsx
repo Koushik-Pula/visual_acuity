@@ -54,7 +54,7 @@ const SignupWithCalibration = ({ onComplete, onBackToLogin }) => {
       if (data.success && data.focal_length) {
         setFocalLength(data.focal_length);
         setIsCalibrating(false);
-        setCalibrationMessage("✅ Focal length calibrated successfully!");
+        setCalibrationMessage(" Focal length calibrated successfully!");
       } else if (data.error) {
         setCalibrationMessage(`Error: ${data.error}`);
         setIsCalibrating(false);

@@ -109,13 +109,13 @@ function FaceDetectionApp() {
             const calibration = await getCalibration();
             if (calibration && calibration.focal_length) {
                 window.userCalibration = calibration;
-                setStatusMessage("✅ Calibration data loaded successfully");
+                setStatusMessage(" Calibration data loaded successfully");
             } else {
-                setStatusMessage("⚠️ Please calibrate your device first");
+                setStatusMessage(" Please calibrate your device first");
             }
         } catch (error) {
             console.error("Failed to load calibration:", error);
-            setStatusMessage("❌ Failed to load calibration data");
+            setStatusMessage(" Failed to load calibration data");
         }
     };
 
@@ -193,7 +193,7 @@ function FaceDetectionApp() {
                         
                         if (consecutiveTargetFrames.current >= 15 && !isDistanceReached) {
                             setIsDistanceReached(true);
-                            setStatusMessage("🎯 Perfect! 4m reached! Starting vision test...");
+                            setStatusMessage(" Perfect! 4m reached! Starting vision test...");
                             startCountdown();
                         }
                     } else {
@@ -217,7 +217,7 @@ function FaceDetectionApp() {
 
         ws.current.onerror = () => {
             setConnectionStatus('error');
-            setStatusMessage("⚠️ Error connecting to server.");
+            setStatusMessage(" Error connecting to server.");
         };
         
         return () => { if (ws.current) ws.current.close(); };
@@ -226,7 +226,7 @@ function FaceDetectionApp() {
     const startMeasuringDistance = async () => {
         if (!user) return;
         if (!window.userCalibration || !window.userCalibration.focal_length) {
-            setStatusMessage("❌ Please calibrate first");
+            setStatusMessage(" Please calibrate first");
             await loadUserCalibration();
             if (!window.userCalibration || !window.userCalibration.focal_length) {
                 setShowRecalibration(true);
@@ -252,7 +252,7 @@ function FaceDetectionApp() {
             setStatusMessage(`🎯 Move to 4m (FL: ${window.userCalibration.focal_length?.toFixed(2)})`);
             detectionInterval.current = setInterval(sendFrame, 100);
         } else {
-            setStatusMessage("⚠️ Not connected to server.");
+            setStatusMessage(" Not connected to server.");
         }
     };
 
@@ -481,8 +481,7 @@ function FaceDetectionApp() {
                                                 handleLandoltComplete(); 
                                                 goHome(); 
                                             }}
-                                            // onHome prop will be handled by LandoltC's internal button
-                                            // which calls onClose anyway in your LandoltC logic
+                                           
                                             onHome={goHome}
                                         />
                                     )}
